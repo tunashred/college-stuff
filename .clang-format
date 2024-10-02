@@ -1,4 +1,60 @@
-IndentWidth: 4        # Number of spaces per indentation level
-TabWidth: 4           # Number of spaces per tab character
-UseTab: Never         # Never use tabs, always use spaces for indentation
-ContinuationIndentWidth: 4  # Indent for continued lines
+---
+BasedOnStyle: LLVM
+
+# Control the number of spaces between includes and function definitions
+IncludeBlocks: Preserve
+
+# Ensure four-space indentation (mimics Tab key behavior)
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# Control the spacing between brackets and parentheses
+SpaceBeforeParens: ControlStatements
+
+# Align parameters when they are split across multiple lines
+AlignAfterOpenBracket: Align
+
+# Break after operators for long expressions
+BreakBeforeBinaryOperators: NonAssignment
+
+# Ensure the function opening brace stays on the same line as the function definition
+BraceWrapping:
+  AfterFunction: false
+  AfterControlStatement: false
+  AfterEnum: false
+
+# Indent switch cases and labels
+IndentCaseLabels: true
+
+# Allow some flexibility for line length
+ColumnLimit: 120
+
+# Prefer the shortest form for the pointer and reference types
+PointerAlignment: Left
+
+# Keep the closing `}` for namespace on the same line as the previous block
+AllowShortBlocksOnASingleLine: Always
+
+# Make comments formatted in the usual style
+CommentPragmas: '^//|/\*|\\*'
+
+# Keep space between operators and function arguments
+SpaceAroundPointerQualifiers: Default
+SpacesInAngles: false
+
+# Format multiline blocks uniformly
+BreakBeforeBraces: Attach
+
+# Align struct and array initialization across multiple lines
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+
+# Handle array initializers and multi-line parameters more cleanly
+BinPackArguments: true
+BinPackParameters: true
+
+# Add vertical space between functions and top-level constructs
+SeparateDefinitionBlocks: Always
+
+AlwaysBreakBeforeMultilineStrings: false
