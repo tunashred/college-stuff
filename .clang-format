@@ -1,0 +1,4 @@
+IndentWidth: 4        # Number of spaces per indentation level
+TabWidth: 4           # Number of spaces per tab character
+UseTab: Never         # Never use tabs, always use spaces for indentation
+ContinuationIndentWidth: 4  # Indent for continued lines
