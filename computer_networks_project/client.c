@@ -12,9 +12,34 @@
 
 #define MAXDATASIZE 1024
 
+int receive_message(int sock_fd) {
+    char buffer[MAXDATASIZE];
+    uint32_t message_length, net_message_length;
+    int bytes_received, total_received;
+
+    bytes_received = recv(sock_fd, &net_message_length, sizeof(net_message_length), 0);
+    if (bytes_received <= 0) {
+        perror("Error receiving message length or server disconnected!\n");
+        return -1;
+    }
+
+    message_length = ntohl(net_message_length);
+    while (total_received < message_length) {
+        bytes_received = recv(sock_fd, buffer, MAXDATASIZE - 1, 0);
+        if (bytes_received == -1) {
+            perror("Error recieving data!\n");
+            return -1;
+        }
+        buffer[bytes_received] = '\0';
+        printf("%s", buffer);
+
+        total_received += bytes_received;
+    }
+    return total_received;
+}
+
 int main(int argc, char *argv[]) {
     int sockfd, numbytes;
-    char buf[MAXDATASIZE];
     struct hostent *he;
     struct sockaddr_in their_addr;
 
@@ -44,27 +69,12 @@ int main(int argc, char *argv[]) {
     }
 
     while(1) {
-        memset(buf, 0, MAXDATASIZE);
-        int bytes_received;
-        while (1) {
-            int bytes_received = recv(sockfd, buf, MAXDATASIZE - 1, 0);
-            buf[bytes_received] = '\0';
-            printf("%s",buf);
-            if (bytes_received < MAXDATASIZE - 1) {
-                break;
-            }
-        }
+        int bytes_received = receive_message(sockfd);
 
         if (bytes_received == -1) {
             fprintf(stderr, "Error while trying to receive message from server!\n");
             exit(1);
         }
-        // if (bytes_received == 0) {
-        //     printf("Connection closed by server.\n");
-        //     // do i need these?
-        //     // close(sockfd);
-        //     // break;
-        // }
 
         int choice;
         scanf("%d", &choice);

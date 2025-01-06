@@ -24,11 +24,18 @@ void send_file_contents(int client_fd, const char *filepath) {
         perror("Error opening file");
         return;
     }
+    
+    fseek(file, 0, SEEK_END);
+    int file_size = ftell(file);
+    int buffer_size = file_size + sizeof(file_size) + 1;
+    char buffer[buffer_size];
 
-    char buffer[MAXDATASIZE];
-    while (fgets(buffer, sizeof(buffer), file)) {
-        send(client_fd, buffer, strlen(buffer), 0);
-    }
+    uint32_t net_file_size = htonl(file_size);
+    memcpy(buffer, &net_file_size, sizeof(net_file_size));
+
+    fseek(file, 0, SEEK_SET);
+    fgets(buffer + sizeof(file_size), file_size, file);
+    send(client_fd, buffer, strlen(buffer), 0);
     fclose(file);
 }
 

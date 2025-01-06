@@ -35,7 +35,7 @@ set(DEBUG_FLAGS
     -O0
     -fverbose-asm
     -finstrument-functions
-    -Xanalyzer
+    -fanalyzer
     -fno-inline
 )
 
