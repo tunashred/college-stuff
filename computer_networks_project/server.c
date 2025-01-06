@@ -24,20 +24,35 @@ void send_file_contents(int client_fd, const char *filepath) {
         perror("Error opening file");
         return;
     }
-    
+
     fseek(file, 0, SEEK_END);
     int file_size = ftell(file);
-    int buffer_size = file_size + sizeof(file_size) + 1;
-    char buffer[buffer_size];
+    rewind(file);
 
     uint32_t net_file_size = htonl(file_size);
-    memcpy(buffer, &net_file_size, sizeof(net_file_size));
+    if (send(client_fd, &net_file_size, sizeof(net_file_size), 0) == -1) {
+        perror("Error sending file size");
+        fclose(file);
+        return;
+    }
 
-    fseek(file, 0, SEEK_SET);
-    fgets(buffer + sizeof(file_size), file_size, file);
-    send(client_fd, buffer, strlen(buffer), 0);
+    char buffer[MAXDATASIZE];
+    int total_sent = 0, bytes_sent, bytes_read;
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        total_sent = 0;
+        while (total_sent < bytes_read) {
+            bytes_sent = send(client_fd, buffer + total_sent, bytes_read - total_sent, 0);
+            if (bytes_sent == -1) {
+                perror("Error sending file data");
+                return;
+            }
+            total_sent += bytes_sent;
+        }
+    }
+
     fclose(file);
 }
+
 
 void send_command_output(int client_fd, const char *command) {
     FILE *pipe = popen(command, "r");
@@ -89,23 +104,24 @@ void create_menu(char* buffer, int size) {
 }
 
 void* thread_job(void* args) {
-    static const char invalid_message[120] = "Invalid choice! Please select a valid option.\n";
-    int* p_sockfd = (int*) args;
-    int sock_fd = *p_sockfd;
-    int choice = 1;
+    int sock_fd = *(int*) args;
+    uint32_t net_choice;
     int bytes = 0;
+    uint32_t net_menu_size = htonl(MAXDATASIZE);
     while (1) {
+        send(sock_fd, &net_menu_size, sizeof(net_menu_size), 0);
         bytes = send(sock_fd, menu, MAXDATASIZE, 0);
         if (bytes == -1) {
             fprintf(stderr, "Could not send message to client!\n");
-            return NULL; // what if i make it send a couple of times before halting connection?
+            return NULL; // what if i make it try send a couple of times before halting connection?
         }
 
-        bytes = recv(sock_fd, &choice, sizeof(choice), 0);
+        bytes = recv(sock_fd, &net_choice, sizeof(net_choice), 0);
         if (bytes) {
-            printf("Option received: %d\n", choice);
+            net_choice = ntohl(net_choice);
+            printf("Option received: %d\n", net_choice);
         }
-        switch (choice) {
+        switch (net_choice) {
             case 1:
                 send_file_contents(sock_fd, "/proc/cpuinfo");
                 break;
@@ -128,7 +144,7 @@ void* thread_job(void* args) {
                 close(sock_fd);
                 break;
             default:
-                bytes = send(sock_fd, invalid_message, 120, 0);
+                bytes = send(sock_fd, "Invalid choice", 15, 0);
                 if (bytes == -1) {
                     fprintf(stderr, "Could not send message to client!\n");
                     return NULL; // what if i make it send a couple of times before halting connection?

@@ -9,13 +9,12 @@
 #include <sys/socket.h>
 
 #define PORT 5000
-
 #define MAXDATASIZE 1024
 
 int receive_message(int sock_fd) {
     char buffer[MAXDATASIZE];
     uint32_t message_length, net_message_length;
-    int bytes_received, total_received;
+    int bytes_received, total_received = 0;
 
     bytes_received = recv(sock_fd, &net_message_length, sizeof(net_message_length), 0);
     if (bytes_received <= 0) {
@@ -24,6 +23,7 @@ int receive_message(int sock_fd) {
     }
 
     message_length = ntohl(net_message_length);
+    printf("Incoming message length: %d\n", message_length);
     while (total_received < message_length) {
         bytes_received = recv(sock_fd, buffer, MAXDATASIZE - 1, 0);
         if (bytes_received == -1) {
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
 
     if (argc != 2) {
         fprintf(stderr,"Invalid number of arguments. Usage: <exec> hostname\n");
-        exit(1);
+        argv[1] = "localhost";
     }
 
     if ((he=gethostbyname(argv[1])) == NULL) {
@@ -71,14 +71,15 @@ int main(int argc, char *argv[]) {
     while(1) {
         int bytes_received = receive_message(sockfd);
 
-        if (bytes_received == -1) {
-            fprintf(stderr, "Error while trying to receive message from server!\n");
-            exit(1);
+        if (bytes_received < 0) {
+            printf("Server disconnected.\n");
+            break;
         }
 
         int choice;
         scanf("%d", &choice);
-        if (send(sockfd, &choice, sizeof(choice), 0) == -1) {
+        uint32_t net_choice = htonl(choice);
+        if (send(sockfd, &net_choice, sizeof(net_choice), 0) == -1) {
             fprintf(stderr, "Could not send message to server!\n");
             close(sockfd);
             break;
