@@ -17,29 +17,11 @@ int receive_message(int sock_fd) {
     uint32_t message_length, net_message_length;
     int bytes_received, total_received = 0;
 
-    // while (total_received < sizeof(net_message_length)) {
-    //     bytes_received = recv(sock_fd, (char*)&net_message_length + total_received, 
-    //                         sizeof(net_message_length) - total_received, 0);
-    //     if (bytes_received <= 0) {
-    //         perror("Error receiving message length");
-    //         return -1;
-    //     }
-    //     total_received += bytes_received;
-    // }
-    // if (bytes_received <= 0) {
-    //     perror("Error receiving message length or server disconnected!\n");
-    //     return -1;
-    // }
-
-    // message_length = ntohl(net_message_length);
-    // printf("Incoming message length: %d\n", message_length);
     while ( (bytes_received = recv(sock_fd, buffer, MAXDATASIZE, 0)) > 0 ) {
         if (bytes_received >= 3 && !strncmp(buffer + bytes_received - 4, "EOF", 3)) {
             break;
         }
-        // buffer[bytes_received] = '\0';
         printf("%s", buffer);
-        // memset(buffer, 0, MAXDATASIZE);
         total_received += bytes_received;
     }
     if (bytes_received == -1) {
@@ -87,7 +69,6 @@ int main(int argc, char *argv[]) {
 
     while(1) {
         int bytes_received = receive_message(sockfd);
-        printf("Finished receiving\n");
         if (bytes_received < 0) {
             printf("Server disconnected.\n");
             break;
@@ -101,8 +82,12 @@ int main(int argc, char *argv[]) {
             close(sockfd);
             break;
         }
-        printf("message sent?\n");
+        if (choice == 0) {
+            printf("Disconnecting...\n");
+            break;
+        }
     }
+    close(sockfd);
 
     return 0;
 }

@@ -35,19 +35,11 @@ void send_file_contents(int client_fd, const char *filepath) {
         fclose(file);
         return;
     }
-    printf("file size: %d\n", file_size);
     rewind(file);
-
-    // uint32_t net_file_size = htonl(file_size);
-    // if (send(client_fd, &net_file_size, sizeof(net_file_size), 0) == -1) {
-    //     perror("Error sending file size");
-    //     fclose(file);
-    //     return;
-    // }
 
     char buffer[MAXDATASIZE];
     int total_sent = 0, bytes_sent, bytes_read;
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) { // need to add null terminator to each buffer sent
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) { // need to add null terminator to each buffer sent?
         total_sent = 0;
         bytes_sent = send(client_fd, buffer, sizeof(buffer), 0);
         if (bytes_sent <= 0) {
@@ -55,17 +47,7 @@ void send_file_contents(int client_fd, const char *filepath) {
                 fclose(file);
                 return;
         }
-        // while (total_sent < bytes_read) {
-        //     bytes_sent = send(client_fd, buffer + total_sent, bytes_read - total_sent, 0);
-        //     if (bytes_sent <= 0) {
-        //         perror("Error sending file data");
-        //         fclose(file);
-        //         return;
-        //     }
-        //     total_sent += bytes_sent;
-        // }
     }
-    printf("File sent\n");
 
     fclose(file);
 }
@@ -79,7 +61,7 @@ void send_command_output(int client_fd, const char *command) {
 
     char buffer[MAXDATASIZE];
     while (fgets(buffer, sizeof(buffer), pipe)) {
-        send(client_fd, buffer, strlen(buffer), 0);
+        send(client_fd, buffer, sizeof(buffer), 0);
     }
     pclose(pipe);
 }
@@ -164,12 +146,10 @@ void* thread_job(void* args) {
     bytes = send(sock_fd, menu, MAXDATASIZE, 0);
     bytes = send(sock_fd, eof_msg, sizeof(eof_msg), 0);
     while (1) {
-        printf("Menu sent\n");
         if (bytes == -1) {
             fprintf(stderr, "Could not send message to client!\n");
             return NULL; // what if i make it try send a couple of times before halting connection?
         }
-        printf("Waiting for choice...\n");
         bytes = recv(sock_fd, &net_choice, sizeof(net_choice), 0);
         if (bytes) {
             net_choice = ntohl(net_choice);
@@ -195,8 +175,9 @@ void* thread_job(void* args) {
                 send_command_output(sock_fd, "lsscsi");
                 break;
             case 0:
+                printf("Client disconnected.\n");
                 close(sock_fd);
-                break;
+                return NULL;
             default:
                 bytes = send(sock_fd, "Invalid choice", 15, 0);
                 if (bytes == -1) {
@@ -208,6 +189,7 @@ void* thread_job(void* args) {
         bytes = send(sock_fd, menu, MAXDATASIZE, 0);
         bytes = send(sock_fd, eof_msg, sizeof(eof_msg), 0);
     }
+    free(menu);
     return NULL;
 }
 
