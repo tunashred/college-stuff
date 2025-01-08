@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
@@ -16,8 +17,6 @@
 
 #define MAXDATASIZE 1024
 
-char menu[MAXDATASIZE];
-
 void send_file_contents(int client_fd, const char *filepath) {
     FILE *file = fopen(filepath, "r");
     if (file == NULL) {
@@ -25,34 +24,51 @@ void send_file_contents(int client_fd, const char *filepath) {
         return;
     }
 
-    fseek(file, 0, SEEK_END);
-    int file_size = ftell(file);
-    rewind(file);
-
-    uint32_t net_file_size = htonl(file_size);
-    if (send(client_fd, &net_file_size, sizeof(net_file_size), 0) == -1) {
-        perror("Error sending file size");
+    if (fseek(file, 0, SEEK_END) != 0) {
+        perror("Error seeking file");
         fclose(file);
         return;
     }
+    int file_size = ftell(file);
+    if (file_size < 0) {
+        perror("Error getting file size");
+        fclose(file);
+        return;
+    }
+    printf("file size: %d\n", file_size);
+    rewind(file);
+
+    // uint32_t net_file_size = htonl(file_size);
+    // if (send(client_fd, &net_file_size, sizeof(net_file_size), 0) == -1) {
+    //     perror("Error sending file size");
+    //     fclose(file);
+    //     return;
+    // }
 
     char buffer[MAXDATASIZE];
     int total_sent = 0, bytes_sent, bytes_read;
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) { // need to add null terminator to each buffer sent
         total_sent = 0;
-        while (total_sent < bytes_read) {
-            bytes_sent = send(client_fd, buffer + total_sent, bytes_read - total_sent, 0);
-            if (bytes_sent == -1) {
+        bytes_sent = send(client_fd, buffer, sizeof(buffer), 0);
+        if (bytes_sent <= 0) {
                 perror("Error sending file data");
+                fclose(file);
                 return;
-            }
-            total_sent += bytes_sent;
         }
+        // while (total_sent < bytes_read) {
+        //     bytes_sent = send(client_fd, buffer + total_sent, bytes_read - total_sent, 0);
+        //     if (bytes_sent <= 0) {
+        //         perror("Error sending file data");
+        //         fclose(file);
+        //         return;
+        //     }
+        //     total_sent += bytes_sent;
+        // }
     }
+    printf("File sent\n");
 
     fclose(file);
 }
-
 
 void send_command_output(int client_fd, const char *command) {
     FILE *pipe = popen(command, "r");
@@ -68,7 +84,7 @@ void send_command_output(int client_fd, const char *command) {
     pclose(pipe);
 }
 
-void create_menu(char* buffer, int size) {
+char* create_menu(int* size) {
     const char *reset = "\033[0m";
     const char *red = "\033[1;31m";
     const char *green = "\033[1;32m";
@@ -76,46 +92,84 @@ void create_menu(char* buffer, int size) {
     const char *blue = "\033[1;34m";
     const char *cyan = "\033[1;36m";
 
-    snprintf(buffer, size,
-             "\n%s==================================%s\n"
-             "%sSystem Information Menu%s\n"
-             "%s==================================%s\n"
-             "%s1.%s Print /proc/cpuinfo\n"
-             "%s2.%s Print /proc/meminfo\n"
-             "%s3.%s Execute lspci\n"
-             "%s4.%s Execute df -h (Disk Usage)\n"
-             "%s5.%s Execute free -h (Memory Usage)\n"
-             "%s6.%s Execute lsscsi (SCSI Devices)\n"
-             "%s0.%s Exit\n"
-             "%s==================================%s\n"
-             "%sEnter your choice: %s",
-             cyan, reset,
-             yellow, reset,
-             cyan, reset,
-             green, reset,
-             green, reset,
-             green, reset,
-             green, reset,
-             green, reset,
-             green, reset,
-             red, reset,
-             cyan, reset,
-             blue, reset);
+    int required_size = snprintf(NULL, 0,
+                 "\n%s==================================%s\n"
+                 "%sSystem Information Menu%s\n"
+                 "%s==================================%s\n"
+                 "%s1.%s Print /proc/cpuinfo\n"
+                 "%s2.%s Print /proc/meminfo\n"
+                 "%s3.%s Execute lspci\n"
+                 "%s4.%s Execute df -h (Disk Usage)\n"
+                 "%s5.%s Execute free -h (Memory Usage)\n"
+                 "%s6.%s Execute lsscsi (SCSI Devices)\n"
+                 "%s0.%s Exit\n"
+                 "%s==================================%s\n"
+                 "%sEnter your choice: %s",
+                 cyan, reset,
+                 yellow, reset,
+                 cyan, reset,
+                 green, reset,
+                 green, reset,
+                 green, reset,
+                 green, reset,
+                 green, reset,
+                 green, reset,
+                 red, reset,
+                 cyan, reset,
+                 blue, reset);
+
+    char *buffer = (char*) malloc(required_size + 1);
+    if (!buffer) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    snprintf(buffer, required_size + 1,
+                 "\n%s==================================%s\n"
+                 "%sSystem Information Menu%s\n"
+                 "%s==================================%s\n"
+                 "%s1.%s Print /proc/cpuinfo\n"
+                 "%s2.%s Print /proc/meminfo\n"
+                 "%s3.%s Execute lspci\n"
+                 "%s4.%s Execute df -h (Disk Usage)\n"
+                 "%s5.%s Execute free -h (Memory Usage)\n"
+                 "%s6.%s Execute lsscsi (SCSI Devices)\n"
+                 "%s0.%s Exit\n"
+                 "%s==================================%s\n"
+                 "%sEnter your choice: %s",
+                 cyan, reset,
+                 yellow, reset,
+                 cyan, reset,
+                 green, reset,
+                 green, reset,
+                 green, reset,
+                 green, reset,
+                 green, reset,
+                 green, reset,
+                 red, reset,
+                 cyan, reset,
+                 blue, reset);
+
+    *size = required_size;
+    return buffer;
 }
 
 void* thread_job(void* args) {
     int sock_fd = *(int*) args;
-    uint32_t net_choice;
+    uint32_t net_choice, net_menu_size;
     int bytes = 0;
-    uint32_t net_menu_size = htonl(MAXDATASIZE);
+    char eof_msg[4] = "EOF";
+
+    char* menu = create_menu(&net_menu_size);
+    bytes = send(sock_fd, menu, MAXDATASIZE, 0);
+    bytes = send(sock_fd, eof_msg, sizeof(eof_msg), 0);
     while (1) {
-        send(sock_fd, &net_menu_size, sizeof(net_menu_size), 0);
-        bytes = send(sock_fd, menu, MAXDATASIZE, 0);
+        printf("Menu sent\n");
         if (bytes == -1) {
             fprintf(stderr, "Could not send message to client!\n");
             return NULL; // what if i make it try send a couple of times before halting connection?
         }
-
+        printf("Waiting for choice...\n");
         bytes = recv(sock_fd, &net_choice, sizeof(net_choice), 0);
         if (bytes) {
             net_choice = ntohl(net_choice);
@@ -151,6 +205,8 @@ void* thread_job(void* args) {
                 }
                 break;
         }
+        bytes = send(sock_fd, menu, MAXDATASIZE, 0);
+        bytes = send(sock_fd, eof_msg, sizeof(eof_msg), 0);
     }
     return NULL;
 }
@@ -167,7 +223,7 @@ int main() {
         exit(1);
     }
 
-    if (setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(int)) == -1) {
+    if (setsockopt(sockfd,IPPROTO_TCP,TCP_NODELAY,&yes,sizeof(int)) == -1) {
         perror("setsockopt");
         exit(1);
     }
@@ -187,8 +243,6 @@ int main() {
         perror("listen");
         exit(1);
     }
-
-    create_menu(menu, MAXDATASIZE);
 
     sin_size = sizeof(struct sockaddr_in);
     while(1) {
